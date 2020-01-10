@@ -36,7 +36,6 @@ def U_Net(input_img, base, scale, num_classes):
     upsample = upsample_simple
 
     conv1 = Conv2D(base, 3, activation=None, padding='same', kernel_initializer='he_normal')(input_img)
-    # FILTER # = 32 (BASE), FILTER SIZE = 3
     conv1 = BatchNormalization()(conv1)
     conv1 = Activation(activation='relu')(conv1)
     conv1 = Conv2D(base, 3, activation=None, padding='same', kernel_initializer='he_normal')(conv1)

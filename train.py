@@ -22,13 +22,15 @@ from __future__ import print_function
 ######################################################
 
 import random
-import cv2
+# import cv2
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 import keras
 import argparse
+
+import pdb
 
 from model import *
 from metrics import *
