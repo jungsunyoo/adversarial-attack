@@ -14,7 +14,7 @@
 
 ![originalImage](./Figure_0_original_img.png)
 
-#### 2) Signed gradient acquired from AdvImg.py: 
+#### 2) Signed gradient (noise) acquired from AdvImg.py: 
 
 ![signedGrad](./Figure_1_advImg_signed_grad.png)
 
