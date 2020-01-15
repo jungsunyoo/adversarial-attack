@@ -1,12 +1,12 @@
 # Adversarial attack on Medical Image Segmentation
 
 ## 1. Acquiring signed gradients to create noise
-### Based on: [fast gradient signed method (FGSM)](https://arxiv.org/abs/1412.6572)
+Based on: [fast gradient signed method (FGSM)](https://arxiv.org/abs/1412.6572)
 
 
-### Run 
+Run 
 ``` AdvImg.py```
-### to generate noise (perturbations) 
+to generate noise (perturbations) 
 
 ### Sample outcomes: 
 
@@ -27,4 +27,4 @@
 ![epsilon0.001](./Figure_3_advImg_epsilon0.01.png)
 
 
-#### If epsilon is small, harder to fool model but the perturbation is hard to notice. Vice versa for bigger epsilon.
+If epsilon is small, harder to fool model but the perturbation is hard to notice. Vice versa for bigger epsilon.
