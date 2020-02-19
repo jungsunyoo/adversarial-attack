@@ -53,12 +53,13 @@ model_type = "U"
 data = "chd"
 option = "train"
 image_size = 256
-batch_size = 16
+batch_size = 5#16
 epochs = 50
 learning_rate = 0.0001
 num_classes = 4
 base = 32
 scale = 2
+which_target = 2
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--test_name', type=str, default=test_name)
@@ -73,6 +74,7 @@ parser.add_argument('--learning_rate', type=float, default=learning_rate)
 parser.add_argument('--num_classes', type=int, default=num_classes)
 parser.add_argument('--base', type=int, default=base)
 parser.add_argument('--scale', type=int, default=scale)
+parser.add_argument('--which_target', type=int, default=which_target)
 args = parser.parse_args()
 
 test_name = args.test_name
@@ -91,7 +93,7 @@ scale = args.scale
 fgsm_params = {'eps': 0.3,
                'clip_min': 0.,
                'clip_max': 1.} 
-which_target = 2 # change label 2 to background
+which_target = 1 # change label 2 to background
 
 os.environ["CUDA_VISIBLE_DEVICES"]=device
 config = tf.ConfigProto()
@@ -107,8 +109,17 @@ session = tf.Session(config=config)
 # x_test, y_test = data_generator(data,image_size, batch_size, num_classes, flag='test')
 
 train_gen = data_generator(data,image_size, batch_size, num_classes, flag='train')
+# train_y_target = y_target_generator(train_gen, num_classes, which_target)
+
+
 valid_gen = data_generator(data,image_size, batch_size, num_classes, flag='valid')
+# valid_y_target = y_target_generator(valid_gen, num_classes, which_target)
+
 test_gen = data_generator(data,image_size, batch_size, num_classes, flag='test')
+# test_y_target = y_target_generator(test_gen, num_classes, which_target)
+
+# y_target_generator(data_gen, num_classes, which_target):
+
 
 # Define input TF placeholer
   # x = tf.placeholder(tf.float32, shape=(None, img_rows, img_cols,
@@ -127,10 +138,12 @@ if option == "train":
     # model(model.input)
     # To be able to call the model in the custom loss, we need to call it once
   # before, see https://github.com/tensorflow/tensorflow/issues/23769
-    adv_dice_coef = adv_dice_coef(model, fgsm_params, which_target, num_classes, train_gen)
-    adv_dice_coef_1 = adv_dice_coef_1(model, fgsm_params, which_target, num_classes, train_gen)
-    adv_dice_coef_2 = adv_dice_coef_2(model, fgsm_params, which_target, num_classes, train_gen)
-    adv_dice_coef_3 = adv_dice_coef_3(model, fgsm_params, which_target, num_classes, train_gen)
+    # adv_dice_coef = adv_dice_coef(model, fgsm_params, which_target, num_classes, train_gen)
+    # adv_dice_coef_1 = adv_dice_coef_1(model, fgsm_params, which_target, num_classes, train_gen)
+    # adv_dice_coef_2 = adv_dice_coef_2(model, fgsm_params, which_target, num_classes, train_gen)
+    # adv_dice_coef_3 = adv_dice_coef_3(model, fgsm_params, which_target, num_classes, train_gen)
+    
+    adv_dice_categorical_crossentropy, adv_dice_coef, adv_dice_coef_1, adv_dice_coef_2, adv_dice_coef_3 = adv_customLoss(train_gen, model, which_target, num_classes)
     
     model.compile(loss=dice_categorical_crossentropy,
                   optimizer=keras.optimizers.Adam(lr=learning_rate, decay=0.0),
@@ -168,7 +181,7 @@ if option == "train":
                                'dice_coef_1': dice_coef_1,
                                'dice_coef_2': dice_coef_2,
                                'dice_coef_3': dice_coef_3,
-                               'Scale': Scale})
+                               'Scale': scale})
     
     result = model.evaluate_generator(
         test_gen,

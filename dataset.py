@@ -130,9 +130,16 @@ def data_generator(data,image_size, batch_size, num_classes, flag):
         label[label==75] = 1
         label[label==150] = 2
         label[label==225] = 3
+        label_adv = label
+        # label_adv[label_adv==which_target] = 0 # YJS added
         label = to_categorical(label, num_classes=num_classes)
+        # label_adv = to_categorical(label_adv, num_classes=num_classes) # YJS added
         yield (img,label)
 
+def y_target_generator(data_gen, num_classes, which_target):
+    for (img,label) in data_gen:
+        label[label==which_target] = 0 # YJS added
+        yield label    
     # for label in y_gen:
     #     label[label < 50] = 0
     #     label[(label >= 50) & (label < 112.5)] = 75
