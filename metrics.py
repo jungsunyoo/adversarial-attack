@@ -101,14 +101,21 @@ def get_x(data_gen):
 
 def fgsm_generate(which_target, num_classes, data_gen, model):
     y = create_adv_label(data_gen, which_target, num_classes)
-    # y_true = get_y_true(data_gen, num_classes)
     x = get_x(data_gen)
     x = tf.convert_to_tensor(x)
     # def fgsm(x, y):
         # 1. clip min, max
         # x = model.input
     asserts = []
+    
+    # Added 2020-02-20: Getting logits =======
+    # softmax_layer = model.get_layer(index=-1)
+    # logit = softmax_layer.input
     y_pred = model(x)
+    # y_pred = model.predict(x)
+    #===================================
+    
+    # y_pred = model(x)
         # if clip_min is not None:
         #     asserts.append(utils_tf.assert_greater_equal(x, tf.cast(clip_min, x.dtype)))
         
@@ -120,8 +127,10 @@ def fgsm_generate(which_target, num_classes, data_gen, model):
     # y = tf.data.Dataset.from_generator(y, tf.float32)
     # y = y / tf.reduce_sum(y, 1, keepdims=True)    
         # Compute loss
-    # loss = softmax_cross_entropy_with_logits(labels=y, logits=model.get_logits) 
-    loss = dice_categorical_crossentropy(y, y_pred)
+    loss = keras.losses.categorical_crossentropy(y, y_pred)
+    # loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=logit) 
+    # loss = dice_categorical_crossentropy(y, logit)
+    # loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=logit, dim=-1)
     # 그냥 평범한 crossentropy로
     if which_target is not None:
     # if targeted:
@@ -146,7 +155,8 @@ def fgsm_generate(which_target, num_classes, data_gen, model):
     
 def adv_customLoss(data_gen, model, which_target, num_classes):
     x_adv = fgsm_generate(which_target, num_classes,  data_gen, model)
-    # x_adv = tf.stop_gradient(x_adv)
+    
+    x_adv = tf.stop_gradient(x_adv)
     y_pred = model(x_adv)
     y_true = get_y_true(data_gen)
     
@@ -183,87 +193,3 @@ def adv_customLoss(data_gen, model, which_target, num_classes):
         return K.mean((2. * intersection + smooth) / (union + smooth))                
     return adv_dice_categorical_crossentropy, adv_dice_coef, adv_dice_coef_1, adv_dice_coef_2, adv_dice_coef_3
 
-
-        # x_adv = fgsm_generate(which_target, num_classses,  data_gen, model)
-        # x_adv = tf.stop_gradient(x_adv)            
-        # y_pred_adv = model(x_adv)
-        # #y_pred = K.round(K.clip(y_pred, 0, 1))
-        # y_true_f = K.flatten(y[..., 1:])
-        # y_pred_f = K.flatten(y_pred_adv[..., 1:])
-        # intersection = K.sum(y_true_f * y_pred_f, axis=-1) # -1: 가장 나중의 차원
-        # union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
-
-# 이 부분은 일단 adversarial model 성공한후 돌릴것    
-# def adv_dice_categorical_crossentropy(y_true, y_pred): # model2.compile에 loss에 들어갈부분 (adversarial model)
-#     # x = get_x(data_gen)
-#     # x = [model.input]
-#     def adv_loss(y, preds):
-#         # Cross-entropy on the legitimate examples
-#         cross_ent_orig = 1 + 0.1*keras.losses.categorical_crossentropy(y, preds) - dice_coef(y, preds)
-#         # Generate adversarial examples
-#         x_adv = fgsm_generate(which_target, num_classses, data_gen, model)
-#         # Consider the attack to be constant
-#         x_adv = tf.stop_gradient(x_adv)
-#         # Cross-entropy on the adversarial examples
-#         preds_adv = model(x_adv)
-#         cross_ent_adv = 1 + 0.1*keras.losses.categorical_crossentropy(y, preds_adv) - adv_dice_coef(model, fgsm, fgsm_params)     
-#         return 0.5 * cross_ent_orig + 0.5 * cross_ent_adv
-    
-    # return adv_loss
-
-# def adv_dice_coef(y_true, y_pred, smooth=1e-08):
-#     # x = [model.input]
-#     # y_true = [model.get_logits]
-#     def adv_coef(y, _):
-#         x_adv = fgsm_generate(which_target, num_classses,  data_gen, model)
-#         x_adv = tf.stop_gradient(x_adv)            
-#         y_pred_adv = model(x_adv)
-#         #y_pred = K.round(K.clip(y_pred, 0, 1))
-#         y_true_f = K.flatten(y[..., 1:])
-#         y_pred_f = K.flatten(y_pred_adv[..., 1:])
-#         intersection = K.sum(y_true_f * y_pred_f, axis=-1) # -1: 가장 나중의 차원
-#         union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)        
-#         return K.mean((2. * intersection + smooth) / (union + smooth))
-#     return adv_coef
-
-# def adv_dice_coef_1(y_true, y_pred, smooth=1e-08):
-#     # x = [model.input]
-#     def adv_coef_1(y, _):           
-#         x_adv = fgsm_generate(which_target, num_classses, data_gen, model)
-#         x_adv = tf.stop_gradient(x_adv)   
-#         y_pred_adv = model(x_adv)
-#         # y_pred = K.round(K.clip(y_pred, 0, 1))
-#         y_true_f = K.flatten(y[..., 1])
-#         y_pred_f = K.flatten(y_pred_adv[..., 1])
-#         intersection = K.sum(y_true_f * y_pred_f, axis=-1)
-#         union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
-#         return K.mean((2. * intersection + smooth) / (union + smooth))
-#     return adv_coef_1
-
-# def adv_dice_coef_2(y_true, y_pred, smooth=1e-08):
-#     # x = [model.input]
-#     def adv_coef_2(y,_):    
-#         x_adv = fgsm_generate(which_target, num_classses, data_gen, model)
-#         x_adv = tf.stop_gradient(x_adv)        
-#         y_pred_adv = model(x_adv)
-#         # y_pred = K.round(K.clip(y_pred, 0, 1))
-#         y_true_f = K.flatten(y[..., 2])
-#         y_pred_f = K.flatten(y_pred_adv[..., 2])
-#         intersection = K.sum(y_true_f * y_pred_f, axis=-1)
-#         union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
-#         return K.mean((2. * intersection + smooth) / (union + smooth))
-#     return adv_coef_2
-
-# def adv_dice_coef_3(y_true, y_pred,  smooth=1e-08):
-#     # x = [model.input]
-#     def adv_coef_3(y,_):
-#         x_adv = fgsm_generate(which_target, num_classses, data_gen, model)
-#         x_adv = tf.stop_gradient(x_adv)        
-#         y_pred_adv = model(x_adv)
-#         # y_pred = K.round(K.clip(y_pred, 0, 1))
-#         y_true_f = K.flatten(y[..., 3])
-#         y_pred_f = K.flatten(y_pred_adv[..., 3])
-#         intersection = K.sum(y_true_f * y_pred_f, axis=-1)
-#         union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
-#         return K.mean((2. * intersection + smooth) / (union + smooth))
-#     return adv_coef_3
