@@ -88,7 +88,12 @@ def U_Net(input_img, base, scale, num_classes):
     pool6 = upsample(base, (2, 2), strides=(2, 2), padding='same')(conv5)
     merge = concatenate([conv1, pool6])
     conv6 = Conv2D(base, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge)
-    out = Conv2D(num_classes, 3, activation='softmax', padding='same')(conv6)
+    #-----YJS Modified------
+    out_= Conv2D(num_classes, 3, activation=None, padding='same')(conv6)
+    out = Activation(activation='softmax')(out_)
+    
+    #------
+    # out = Conv2D(num_classes, 3, activation='softmax', padding='same')(conv6)
 
     model = Model(inputs=input_img, outputs=out)
     return model

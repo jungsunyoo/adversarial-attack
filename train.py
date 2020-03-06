@@ -59,7 +59,7 @@ learning_rate = 0.0001
 num_classes = 4
 base = 32
 scale = 2
-which_target = 2
+which_target = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--test_name', type=str, default=test_name)
@@ -90,6 +90,16 @@ num_classes = args.num_classes
 base = args.base
 scale = args.scale
 
+
+lbfgs_params = {'clip_min': 0, 
+                'clip_max': 1,
+                'batch_size': 1, 
+                'binary_search_steps': 5, 
+                'initial_const': 1e-2,
+                'max_iterations': 1000
+                }
+
+
 fgsm_params = {'eps': 0.3,
                'clip_min': 0.,
                'clip_max': 1.} 
@@ -98,7 +108,12 @@ which_target = 1 # change label 2 to background
 os.environ["CUDA_VISIBLE_DEVICES"]=device
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-session = tf.Session(config=config)
+
+
+# Create TF session and set as Keras backend session
+sess = tf.Session(config=config)
+keras.backend.set_session(sess)
+
 
 #y_sample = cv2.imread("./chd/y_train/sys_090_064.jpg")
 #unique, counts = np.unique(y_sample, return_counts=True)
@@ -143,7 +158,7 @@ if option == "train":
     # adv_dice_coef_2 = adv_dice_coef_2(model, fgsm_params, which_target, num_classes, train_gen)
     # adv_dice_coef_3 = adv_dice_coef_3(model, fgsm_params, which_target, num_classes, train_gen)
     
-    adv_dice_categorical_crossentropy, adv_dice_coef, adv_dice_coef_1, adv_dice_coef_2, adv_dice_coef_3 = adv_customLoss(train_gen, model, which_target, num_classes)
+    adv_dice_categorical_crossentropy, adv_dice_coef, adv_dice_coef_1, adv_dice_coef_2, adv_dice_coef_3 = adv_customLoss(train_gen, model, which_target, num_classes, sess, **lbfgs_params)
     
     model.compile(loss=dice_categorical_crossentropy,
                   optimizer=keras.optimizers.Adam(lr=learning_rate, decay=0.0),
