@@ -118,28 +118,11 @@ keras.backend.set_session(sess)
 #y_sample = cv2.imread("./chd/y_train/sys_090_064.jpg")
 #unique, counts = np.unique(y_sample, return_counts=True)
 #print(dict(zip(unique, counts)))
-        
-# x_train, y_train = data_generator(data,image_size, batch_size, num_classes, flag='train')
-# x_val, y_val = data_generator(data,image_size, batch_size, num_classes, flag='valid')
-# x_test, y_test = data_generator(data,image_size, batch_size, num_classes, flag='test')
+
 
 train_gen = data_generator(data,image_size, batch_size, num_classes, flag='train')
-# train_y_target = y_target_generator(train_gen, num_classes, which_target)
-
-
 valid_gen = data_generator(data,image_size, batch_size, num_classes, flag='valid')
-# valid_y_target = y_target_generator(valid_gen, num_classes, which_target)
-
 test_gen = data_generator(data,image_size, batch_size, num_classes, flag='test')
-# test_y_target = y_target_generator(test_gen, num_classes, which_target)
-
-# y_target_generator(data_gen, num_classes, which_target):
-
-
-# Define input TF placeholer
-  # x = tf.placeholder(tf.float32, shape=(None, img_rows, img_cols,
-  #                                       nchannels))
-  # y = tf.placeholder(tf.float32, shape=(None, nb_classes))
 
 
 
@@ -149,16 +132,78 @@ if option == "train":
         model = U_Net(input_img, base, scale, num_classes)
     model.summary()
     
-    # YJS added: define metrics
-    # model(model.input)
-    # To be able to call the model in the custom loss, we need to call it once
-  # before, see https://github.com/tensorflow/tensorflow/issues/23769
-    # adv_dice_coef = adv_dice_coef(model, fgsm_params, which_target, num_classes, train_gen)
-    # adv_dice_coef_1 = adv_dice_coef_1(model, fgsm_params, which_target, num_classes, train_gen)
-    # adv_dice_coef_2 = adv_dice_coef_2(model, fgsm_params, which_target, num_classes, train_gen)
-    # adv_dice_coef_3 = adv_dice_coef_3(model, fgsm_params, which_target, num_classes, train_gen)
+    def adv_decorator(data_gen, model, which_target, num_classes, sess, **kwargs):
+        def adv_decorator2(func):   
+            def wrapper(y_true, y_pred):
+                tf_dtype = tf.as_dtype('float32')
+                softmax_layer = model.get_layer(index=-1)
+                logit = softmax_layer.input
+                targeted_attack = True
+                y_true = get_y_true(data_gen)
+                y_target = create_adv_label(data_gen, which_target, num_classes)
+                clip_min = kwargs["clip_min"]
+                clip_max = kwargs["clip_max"]
+                batch_size = kwargs["batch_size"]
+                binary_search_steps = kwargs["binary_search_steps"]
+                initial_const = kwargs["initial_const"]
+                max_iterations = kwargs["max_iterations"]
+                x = get_x(data_gen)
+                x = tf.convert_to_tensor(x)
+
+                attack = LBFGS_impl(sess, x, logit, y_target, targeted_attack, binary_search_steps, max_iterations,initial_const, clip_min, clip_max, num_classes, batch_size)
+                
+                # def lbfgs_wrap(x_val, y_val):
+                #   """
+                #   Wrapper creating TensorFlow interface for use with py_func
+                #   """
+                #   return np.array(attack.attack(x_val, y_val), dtype=tf.as_dtype('float32'))        
+                wrap = tf.py_func(attack.attack, [x, y_target], tf_dtype)
+                wrap.set_shape(x.get_shape())   
+                x_adv = tf.stop_gradient(wrap)
+                y_pred = model(x_adv)
+                return func(y_true, y_pred)
+            return wrapper
+        return adv_decorator2
+        
+    @adv_decorator(data_gen=train_gen, model=model, which_target=which_target, num_classes=num_classes, sess=sess, **lbfgs_params)
+    def adv_dice_categorical_crossentropy(y_true, y_pred):
+        return 1 + 0.1*keras.losses.categorical_crossentropy(y_true, y_pred) - adv_dice_coef(y_true, y_pred)
     
-    adv_dice_categorical_crossentropy, adv_dice_coef, adv_dice_coef_1, adv_dice_coef_2, adv_dice_coef_3 = adv_customLoss(train_gen, model, which_target, num_classes, sess, **lbfgs_params)
+    @adv_decorator(data_gen=train_gen, model=model, which_target=which_target, num_classes=num_classes, sess=sess, **lbfgs_params)
+    def adv_dice_coef(y_true, y_pred, smooth=1e-08):
+        y_pred = K.round(K.clip(y_pred, 0, 1))
+        y_true_f = K.flatten(y_true[..., 1:])
+        y_pred_f = K.flatten(y_pred[..., 1:])
+        intersection = K.sum(y_true_f * y_pred_f, axis=-1) # -1: 가장 나중의 차원
+        union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
+        return K.mean((2. * intersection + smooth) / (union + smooth))
+
+    @adv_decorator(data_gen=train_gen, model=model, which_target=which_target, num_classes=num_classes, sess=sess, **lbfgs_params)
+    def adv_dice_coef_1(y_true, y_pred, smooth=1e-08):
+        y_pred = K.round(K.clip(y_pred, 0, 1))
+        y_true_f = K.flatten(y_true[..., 1:])
+        y_pred_f = K.flatten(y_pred[..., 1:])
+        intersection = K.sum(y_true_f * y_pred_f, axis=-1) # -1: 가장 나중의 차원
+        union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)        
+        return K.mean((2. * intersection + smooth) / (union + smooth))
+
+    @adv_decorator(data_gen=train_gen, model=model, which_target=which_target, num_classes=num_classes, sess=sess, **lbfgs_params)
+    def adv_dice_coef_2(y_true, y_pred, smooth=1e-08):            
+        y_pred = K.round(K.clip(y_pred, 0, 1))
+        y_true_f = K.flatten(y_true[..., 2])
+        y_pred_f = K.flatten(y_pred[..., 2])
+        intersection = K.sum(y_true_f * y_pred_f, axis=-1)
+        union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
+        return K.mean((2. * intersection + smooth) / (union + smooth))
+
+    @adv_decorator(data_gen=train_gen, model=model, which_target=which_target, num_classes=num_classes, sess=sess, **lbfgs_params)
+    def adv_dice_coef_3(y_true, y_pred, smooth=1e-08):
+        y_pred = K.round(K.clip(y_pred, 0, 1))
+        y_true_f = K.flatten(y_true[..., 3])
+        y_pred_f = K.flatten(y_pred[..., 3])
+        intersection = K.sum(y_true_f * y_pred_f, axis=-1)
+        union = K.sum(y_true_f, axis=-1) + K.sum(y_pred_f, axis=-1)
+        return K.mean((2. * intersection + smooth) / (union + smooth))
     
     model.compile(loss=dice_categorical_crossentropy,
                   optimizer=keras.optimizers.Adam(lr=learning_rate, decay=0.0),
@@ -189,7 +234,8 @@ if option == "train":
         validation_steps=19316/batch_size,
         callbacks=[checkpointer, csv_logger, reduce_lr],
         verbose=1)
-    
+
+                    
     model = load_model(filepath="./save/"+str(test_name)+"_"+data+".hdf5",
                custom_objects={'dice_categorical_crossentropy': dice_categorical_crossentropy,
                                'dice_coef': dice_coef,
